@@ -1,0 +1,112 @@
+---
+title: "Data preparation"
+author: "Natthawut Adulyanukosol"
+date: "06/06/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+```
+
+
+### Load data 
+From https://docs.google.com/spreadsheets/d/1EwPrWESPyTLEZIaRofA8nYb-Yn8o0akHjd9lHSwWgOc/edit by [Dollapak S.](https://www.facebook.com/markjmn/posts/10214028056044655?comment_id=10214030777872699) with further updates and cleaning
+
+```{r}
+candidatescore <- read.csv("./data/candidatescore-updated-CN8.csv")
+```
+
+### Format data
+Rename columns and discard unneccessary information
+```{r}
+data <- candidatescore %>% 
+  rename(
+    province = จังหวัด,
+    zone = เขตเลือกตั้ง,
+    party = พรรคการเมือง,
+    name = newname
+  ) %>% 
+  select(-c(ocrName, name, no))  %>%
+  filter(score != 0)
+
+head(data)
+```
+
+Reformat the data from long to wide
+```{r}
+partyAll <- unique(data$party)
+
+data <- data %>% spread(party, score)
+data[is.na(data)] <- 0
+
+data$total <- rowSums(data %>% select(-c('province', 'zone')))
+
+head(data)
+```
+
+Group by political sides
+```{r}
+
+
+partyAntiNCPO <- c('เพื่อไทย',
+                   'อนาคตใหม่',
+                   'เสรีรวมไทย',
+                   'ประชาชาติ',
+                   'เศรษฐกิจใหม่',
+                   'เพื่อชาติ',
+                   'พลังปวงชนไทย')
+
+partyNCPO <- c('พลังประชารัฐ',
+               'ประชาธิปัตย์',
+               'ภูมิใจไทย',
+               'ชาติไทยพัฒนา',
+               'รวมพลังประชาชาติไทย',
+               'ชาติพัฒนา',
+               'พลังท้องถิ่นไท',
+               'รักษ์ผืนป่าประเทศไทย',
+               'พลังชาติไทย',
+               'ประชาภิวัฒน์',
+               'ไทยศรีวิไลย์',
+               'พลังไทยรักไทย',
+               'ครูไทยเพื่อประชาชน',
+               'ประชานิยม',
+               'ประชาธรรมไทย',
+               'ประชาชนปฏิรูป',
+               'พลเมืองไทย',
+               'ประชาธิปไตยใหม่',
+               'พลังธรรมใหม่')
+
+
+data$NCPO <- rowSums(data %>% select(partyNCPO))
+data$antiNCPO <- rowSums(data %>% select(partyAntiNCPO))
+
+dataFiltered <- data %>% select(c('NCPO', 'antiNCPO'))
+
+dataFiltered$totalFiltered <- rowSums(dataFiltered)
+
+dataFiltered <- data.frame(data$province, data$zone, dataFiltered, data$total)
+head(dataFiltered)
+```
+
+
+
+## Votes per side as fraction by province
+```{r}
+dataFilteredByProvince <- dataFiltered %>% 
+  group_by(data.province) %>% 
+  summarise_all(funs(sum)) %>%
+  select(-c(data.zone))
+
+head(dataFilteredByProvince)
+```
+
+## Save prepared file
+```{r}
+write.csv(dataFilteredByProvince, "./data/candidatescore-prepared.csv", row.names = F)
+```
